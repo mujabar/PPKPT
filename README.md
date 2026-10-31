@@ -41,7 +41,8 @@ cp .env.example .env
 ```
 
 Buka `.env`, lalu ganti placeholder pada `DATABASE_URL` dan `DIRECT_URL` dengan connection
-string dari Supabase. File `.env` tidak akan ikut ter-commit.
+string dari Supabase. `.env` sudah di-ignore Git; yang ikut ter-commit hanya `.env.example`
+tanpa kredensial. Cek dengan `git check-ignore -v .env`.
 
 Variabel lain (`NEXT_PUBLIC_SUPABASE_URL`, dst.) opsional untuk sekarang dan baru dipakai saat
 fitur auth/storage ditambahkan.
@@ -55,23 +56,40 @@ npm run db:generate
 Client dibuat di `src/generated/prisma` (folder ini di-ignore Git dan dibuat ulang oleh perintah
 di atas).
 
-## 5. Buat tabel di database
+## 5. Terapkan skema database
 
 ```bash
-npm run db:migrate -- --name init
+npm run db:deploy
 ```
 
-Perintah ini membuat folder `prisma/migrations`, menjalankan migrasi ke Supabase, dan membuat
-semua tabel sesuai `prisma/schema.prisma`. Setelah mengubah `schema.prisma`, jalankan
-`npm run db:generate` agar tipe Prisma Client ikut diperbarui.
+Perintah ini menjalankan migrasi yang sudah tersedia di `prisma/migrations` sehingga semua enum
+dan tabel dibuat sesuai `prisma/schema.prisma`.
 
-Alternatif cepat tanpa riwayat migrasi (cocok untuk eksperimen awal):
+Saat mengubah `schema.prisma`, buat migrasi baru lalu generate ulang client:
+
+```bash
+npm run db:migrate -- --name tambah_fitur
+npm run db:generate
+```
+
+Alternatif cepat tanpa riwayat migrasi (hanya untuk eksperimen awal):
 
 ```bash
 npm run db:push
 ```
 
-## 6. Jalankan aplikasi
+## 6. Isi data contoh (seed)
+
+```bash
+npm run db:seed
+```
+
+Seed membuat **satu laporan fiktif** bertanda `PPKPT-2026-DEMO01`, lalu membacanya kembali dan
+mencocokkan 9 nilai (id, ticketCode, peran pelapor, bentuk kekerasan, tanggal, lokasi, kronologi,
+urgensi, anonim). Perintah ini idempotent — aman dijalankan berulang karena memakai `upsert`.
+Tidak ada data pribadi nyata di dalamnya.
+
+## 7. Jalankan aplikasi
 
 ```bash
 npm run dev
@@ -79,11 +97,14 @@ npm run dev
 
 Buka [http://localhost:3000](http://localhost:3000). Halaman awal memakai Tailwind CSS.
 
-## 7. Verifikasi
+## 8. Verifikasi
 
 ```bash
 # Cek koneksi Prisma ke Supabase
 npm run db:check
+
+# Simpan + baca ulang data fiktif
+npm run db:seed
 
 # Contoh validasi Zod (lulus + gagal)
 npm run validate:check
@@ -104,6 +125,7 @@ Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan
 | `npm run db:generate` | Generate Prisma Client |
 | `npm run db:migrate` | Buat dan jalankan migrasi baru |
 | `npm run db:deploy` | Jalankan migrasi yang sudah ada (CI/production) |
+| `npm run db:seed` | Simpan dan verifikasi data laporan fiktif |
 | `npm run db:push` | Sinkronkan schema tanpa file migrasi |
 | `npm run db:studio` | Buka Prisma Studio |
 | `npm run db:check` | Cek koneksi ke database |
@@ -114,7 +136,9 @@ Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan
 ```
 .
 ├── prisma/
-│   └── schema.prisma          # Skema database (domain pelaporan PPKPT)
+│   ├── migrations/            # Riwayat migrasi database
+│   ├── schema.prisma          # Skema database (domain pelaporan PPKPT)
+│   └── seed.ts                # Seed data fiktif + verifikasi baca ulang
 ├── prisma7.config.ts          # Konfigurasi Prisma CLI (Prisma 7)
 ├── scripts/
 │   ├── check-db.ts            # Cek koneksi database

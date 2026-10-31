@@ -14,6 +14,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:check": "tsx scripts/check-db.ts",
     "validate:check": "tsx scripts/check-validation.ts"
