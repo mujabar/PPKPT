@@ -1,4 +1,5 @@
 import { ClipboardText } from "@phosphor-icons/react/dist/ssr";
+import { EvidencePanel } from "@/components/form-pelapor/evidence-panel";
 import { Suspense } from "react";
 
 import {
@@ -47,6 +48,7 @@ async function SatgasContent() {
         />
       }
     >
+      <EvidencePanel />
       <EmptyArea
         icon={<ClipboardText size={22} weight="duotone" />}
         title="Belum ada kasus ditugaskan"

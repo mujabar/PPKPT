@@ -28,6 +28,8 @@ import {
 } from "@/feature/pelapor/constants";
 import type { Affiliation } from "@/generated/prisma/enums";
 
+import { EvidencePanel } from "./evidence-panel";
+
 const initialState: ReportFormState = {
   status: "idle",
   message: "",
@@ -215,6 +217,8 @@ export function ReportForm({
             tersimpan dengan status awal DITERIMA dan urgensi SEDANG.
           </p>
 
+          <EvidencePanel initialTicket={state.ticketCode} />
+
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/pelapor"
@@ -294,6 +298,7 @@ export function ReportForm({
           </p>
         </aside>
 
+        <div><EvidencePanel />
         <form action={formAction} noValidate className="flex flex-col gap-8">
           <input type="hidden" name="submissionId" value={submissionId} />
 
@@ -816,7 +821,7 @@ export function ReportForm({
               diakses pelapor serta Satgas.
             </p>
           </div>
-        </form>
+        </form></div>
       </div>
     </main>
   );
