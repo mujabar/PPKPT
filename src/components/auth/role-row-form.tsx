@@ -31,12 +31,24 @@ export function RoleRowForm({ profileId, role, disabled }: RoleRowFormProps) {
     initialState,
   );
 
+  if (disabled) {
+    return (
+      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+        Akun sendiri
+      </span>
+    );
+  }
+
   return (
     <form action={formAction} className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <input type="hidden" name="profileId" value={profileId} />
-        <Select name="role" defaultValue={role} disabled={disabled}>
-          <SelectTrigger size="sm" aria-label="Pilih peran pengguna">
+        <Select name="role" defaultValue={role}>
+          <SelectTrigger
+            size="sm"
+            aria-label="Pilih peran pengguna"
+            className="w-[10.5rem] bg-background"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -51,7 +63,8 @@ export function RoleRowForm({ profileId, role, disabled }: RoleRowFormProps) {
           type="submit"
           size="sm"
           variant="outline"
-          disabled={pending || disabled}
+          disabled={pending}
+          className="bg-background"
         >
           {pending ? "Menyimpan..." : "Simpan"}
         </Button>
@@ -61,8 +74,8 @@ export function RoleRowForm({ profileId, role, disabled }: RoleRowFormProps) {
         <p
           className={
             state.status === "error"
-              ? "text-xs text-destructive"
-              : "text-xs text-muted-foreground"
+              ? "text-[11px] text-destructive"
+              : "text-[11px] text-muted-foreground"
           }
         >
           {state.message}

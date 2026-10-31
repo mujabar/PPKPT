@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import type { ComponentProps } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -21,7 +20,10 @@ export function SubmitButton({
     <Button type="submit" disabled={pending} {...props}>
       {pending ? (
         <>
-          <Loader2 className="animate-spin" aria-hidden />
+          <span
+            aria-hidden
+            className="size-1.5 animate-pulse rounded-full bg-current"
+          />
           {pendingLabel}
         </>
       ) : (
