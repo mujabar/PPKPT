@@ -5,9 +5,10 @@ Fondasi proyek untuk aplikasi pelaporan Satgas PPKPT (Permendikbudristek No. 55 
 Tech stack:
 
 - **Next.js 16** (App Router) + **TypeScript**
-- **Tailwind CSS 4**
+- **Tailwind CSS 4** + **shadcn/ui**
 - **PostgreSQL** di **Supabase**
 - **Prisma 7** (ORM + migrasi)
+- **Supabase Auth** (email + password, sesi cookie via `@supabase/ssr`)
 - **Zod 4** (validasi data)
 
 ## Prasyarat
@@ -44,8 +45,13 @@ Buka `.env`, lalu ganti placeholder pada `DATABASE_URL` dan `DIRECT_URL` dengan 
 string dari Supabase. `.env` sudah di-ignore Git; yang ikut ter-commit hanya `.env.example`
 tanpa kredensial. Cek dengan `git check-ignore -v .env`.
 
-Variabel lain (`NEXT_PUBLIC_SUPABASE_URL`, dst.) opsional untuk sekarang dan baru dipakai saat
-fitur auth/storage ditambahkan.
+Untuk auth, isi juga:
+
+- `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` (atau
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` untuk key format baru).
+- `SUPABASE_SERVICE_ROLE_KEY` — **hanya untuk script admin di server**. Jangan pernah memberi
+  prefix `NEXT_PUBLIC_`.
+- `TEST_USER_PASSWORD` — password akun uji lokal, minimal 8 karakter. Jangan commit nilainya.
 
 ## 4. Generate Prisma Client
 
@@ -89,7 +95,33 @@ mencocokkan 9 nilai (id, ticketCode, peran pelapor, bentuk kekerasan, tanggal, l
 urgensi, anonim). Perintah ini idempotent — aman dijalankan berulang karena memakai `upsert`.
 Tidak ada data pribadi nyata di dalamnya.
 
-## 7. Jalankan aplikasi
+## 7. Siapkan Supabase Auth dan akun uji
+
+1. Buka **Authentication → Providers → Email** di dashboard Supabase dan pastikan provider aktif.
+2. Registrasi publik belum termasuk cakupan. Sebaiknya matikan **Allow new users to sign up**;
+   akun dibuat oleh administrator.
+3. Pastikan `NEXT_PUBLIC_SUPABASE_URL` dan key publik sudah terisi, lalu isi
+   `TEST_USER_PASSWORD` di `.env`.
+4. Buat akun uji untuk setiap peran:
+
+```bash
+npm run auth:seed-users
+```
+
+| Email | Peran | Status |
+| --- | --- | --- |
+| `pelapor@ppkpt.test` | `PELAPOR` | Aktif |
+| `satgas@ppkpt.test` | `ANGGOTA_SATGAS` | Aktif |
+| `ketua@ppkpt.test` | `KETUA_SATGAS` | Aktif |
+| `pimpinan@ppkpt.test` | `PIMPINAN` | Aktif |
+| `admin@ppkpt.test` | `ADMIN` | Aktif |
+| `nonaktif@ppkpt.test` | `PELAPOR` | Nonaktif |
+
+Password semua akun berasal dari `TEST_USER_PASSWORD` di `.env`. Script ini idempotent: user
+Supabase yang sudah ada dipakai ulang dan profilnya di-`upsert` berdasarkan `id` auth, tanpa
+membuat profil ganda. Password tidak ditampilkan dan tidak disimpan di repositori.
+
+## 8. Jalankan aplikasi
 
 ```bash
 npm run dev
@@ -97,14 +129,17 @@ npm run dev
 
 Buka [http://localhost:3000](http://localhost:3000). Halaman awal memakai Tailwind CSS.
 
-## 8. Verifikasi
+## 9. Verifikasi
 
 ```bash
-# Cek koneksi Prisma ke Supabase
+# Cek koneksi Prisma + status RLS
 npm run db:check
 
 # Simpan + baca ulang data fiktif
 npm run db:seed
+
+# Siapkan akun uji
+npm run auth:seed-users
 
 # Contoh validasi Zod (lulus + gagal)
 npm run validate:check
@@ -112,6 +147,14 @@ npm run validate:check
 
 Contoh validasi juga bisa dicoba lewat UI di [http://localhost:3000/validasi](http://localhost:3000/validasi).
 Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan** data ke database.
+
+Verifikasi auth manual:
+
+1. Login `pelapor@ppkpt.test` → diarahkan ke `/pelapor`; muat ulang halaman, sesi bertahan.
+2. Buka `/admin` sebagai pelapor → ditolak dan diarahkan kembali.
+3. Logout → kembali ke `/login`; `/admin` tanpa sesi ditolak.
+4. Login dengan password salah → pesan `email atau password ada salah`.
+5. Login `nonaktif@ppkpt.test` → ditolak dengan pesan akun tidak aktif.
 
 ## Script npm
 
@@ -128,7 +171,8 @@ Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan
 | `npm run db:seed` | Simpan dan verifikasi data laporan fiktif |
 | `npm run db:push` | Sinkronkan schema tanpa file migrasi |
 | `npm run db:studio` | Buka Prisma Studio |
-| `npm run db:check` | Cek koneksi ke database |
+| `npm run db:check` | Cek koneksi ke database + status RLS |
+| `npm run auth:seed-users` | Buat akun uji untuk setiap peran |
 | `npm run validate:check` | Contoh validasi Zod via terminal |
 
 ## Struktur proyek
@@ -136,24 +180,65 @@ Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan
 ```
 .
 ├── prisma/
-│   ├── migrations/            # Riwayat migrasi database
+│   ├── migrations/            # Riwayat migrasi (termasuk RLS)
 │   ├── schema.prisma          # Skema database (domain pelaporan PPKPT)
 │   └── seed.ts                # Seed data fiktif + verifikasi baca ulang
 ├── prisma7.config.ts          # Konfigurasi Prisma CLI (Prisma 7)
 ├── scripts/
-│   ├── check-db.ts            # Cek koneksi database
-│   └── check-validation.ts    # Contoh validasi Zod
+│   ├── check-db.ts            # Cek koneksi database + RLS
+│   ├── check-validation.ts    # Contoh validasi Zod
+│   └── create-test-users.ts   # Akun uji per peran (Admin API)
 ├── src/
-│   ├── app/                   # Halaman dan Server Action (App Router)
-│   │   ├── page.tsx           # Halaman awal
+│   ├── app/
+│   │   ├── (auth)/login/      # Halaman login
+│   │   ├── (app)/             # Halaman terlindungi per peran
+│   │   ├── page.tsx           # Halaman awal publik
 │   │   └── validasi/          # Demo validasi Zod
+│   ├── components/
+│   │   ├── auth/              # AuthPage, LoginForm, RoleRowForm
+│   │   ├── shared/            # Header, submit button, role page
+│   │   └── ui/                # Komponen dasar shadcn/ui
+│   ├── feature/auth/          # Service, action, validasi, peran
 │   ├── generated/prisma/      # Prisma Client hasil generate (di-ignore Git)
-│   └── lib/
-│       ├── env.ts             # Validasi environment dengan Zod
-│       ├── prisma.ts          # Singleton Prisma Client
-│       └── validations/       # Skema validasi Zod
+│   ├── lib/
+│   │   ├── supabase/          # client, server, proxy, config
+│   │   ├── env.ts             # Validasi environment dengan Zod
+│   │   ├── prisma.ts          # Singleton Prisma Client
+│   │   └── validations/       # Skema validasi Zod
+│   └── proxy.ts               # Proxy Next.js 16 (refresh sesi)
+├── components.json            # Konfigurasi shadcn/ui
 └── .env.example               # Contoh environment tanpa kredensial
 ```
+
+## Autentikasi & hak akses
+
+- **Sesi** dikelola `@supabase/ssr` lewat cookie. `src/proxy.ts` (konvensi Next.js 16, bukan
+  `middleware.ts`) memanggil `supabase.auth.getClaims()` untuk memverifikasi token dan
+  menyegarkan sesi pada setiap request ke rute auth.
+- **Otorisasi dilakukan ulang di server** pada setiap halaman dan Server Action lewat
+  `getSessionProfile` + `requireRole`. Peran selalu dibaca dari tabel `profiles`, bukan dari
+  `user_metadata`.
+- **Profil** dibuat otomatis saat login pertama dengan `id` = `auth.users.id` (upsert, tanpa
+  profil ganda). Peran bawaan `PELAPOR`; perubahan peran hanya lewat admin.
+- **Rute per peran**:
+
+| Peran | Rute awal | Batas akses |
+| --- | --- | --- |
+| `PELAPOR` | `/pelapor` | Area pelapor |
+| `ANGGOTA_SATGAS` | `/satgas` | Area Satgas |
+| `KETUA_SATGAS` | `/ketua` (+ `/satgas`) | Pengelolaan Satgas |
+| `PIMPINAN` | `/pimpinan` | Kasus untuk keputusan |
+| `ADMIN` | `/admin` | Akun & peran, tanpa isi kasus |
+
+- **RLS** diaktifkan untuk seluruh tabel di schema `public` lewat migrasi
+  `20261031030000_enable_rls`. Hanya `profiles` memiliki policy SELECT milik sendiri; tidak ada
+  policy UPDATE/INSERT/DELETE, sehingga peran tidak bisa diubah lewat Supabase Data API.
+  Prisma terhubung sebagai role `postgres` (melewati RLS), jadi guard server tetap wajib.
+- **Pesan error** login dibuat generik (`email atau password ada salah`) agar tidak membocorkan
+  apakah email terdaftar. Akun nonaktif dan profil yang tidak tersedia ditolak dengan pesan
+  terpisah.
+- **Admin** dapat mengubah peran akun lain di `/admin`. Perubahan peran akun sendiri ditolak,
+  dan halaman admin tidak menampilkan data kasus.
 
 ## Catatan teknis
 
@@ -175,12 +260,20 @@ Form tersebut memakai Server Action dan `reportSchema`, tetapi **belum menyimpan
 | Migrasi gagal lewat pooler | Pastikan `DIRECT_URL` memakai port `5432`, bukan `6543`. |
 | `PrismaClient did not initialize` | Jalankan `npm run db:generate`, lalu restart dev server. |
 | `Konfigurasi environment tidak valid` | `.env` belum diisi atau `DATABASE_URL` bukan URL yang valid. |
+| `Konfigurasi Supabase tidak valid` | Isi `NEXT_PUBLIC_SUPABASE_URL` dan anon/publishable key. |
+| `email atau password ada salah` | Password akun uji diambil dari `TEST_USER_PASSWORD` saat akun dibuat. Jika lupa, reset lewat dashboard Supabase. |
+| `Akun Anda tidak aktif` | Profil dengan `isActive = false` memang ditolak. Aktifkan lewat admin/dashboard. |
+| Data API Supabase kosong / 401 | RLS aktif dan tabel selain `profiles` sengaja tanpa policy. Akses data lewat server/Prisma. |
 | Timeout saat query | Gunakan connection pooler Supabase (`DATABASE_URL`) untuk runtime aplikasi. |
 
 ## Referensi
 
 - [Next.js App Router](https://nextjs.org/docs/app)
+- [Next.js 16 Proxy](https://nextjs.org/docs/app/getting-started/proxy)
 - [Tailwind CSS](https://tailwindcss.com/docs)
 - [Supabase Database](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase Auth SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Prisma 7 + PostgreSQL](https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/postgresql)
+- [shadcn/ui Forms](https://ui.shadcn.com/docs/forms/next)
 - [Zod](https://zod.dev)
