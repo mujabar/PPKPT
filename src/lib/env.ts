@@ -15,7 +15,9 @@ export const envSchema = z.object({
   DIRECT_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
+  TEST_USER_PASSWORD: optionalString,
 });
 
 export type Env = z.infer<typeof envSchema>;
