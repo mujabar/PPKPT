@@ -1,0 +1,394 @@
+// ============================================================
+// Sistem Pelaporan Satgas PPKPT — Prisma schema (PostgreSQL / Supabase)
+// Dasar: Permendikbudristek No. 55 Tahun 2024
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Koneksi database diatur di prisma7.config.ts (Prisma 7).
+}
+
+// ------------------------------------------------------------
+// ENUM
+// ------------------------------------------------------------
+
+enum Role {
+  PELAPOR        // sivitas akademika yang punya akun
+  ANGGOTA_SATGAS
+  KETUA_SATGAS
+  PIMPINAN       // pimpinan perguruan tinggi (penetap sanksi)
+  ADMIN
+}
+
+enum ReporterRole {
+  KORBAN
+  SAKSI
+  PIHAK_LAIN
+}
+
+// Enam bentuk kekerasan menurut Pasal 7 ayat (2)
+enum ViolenceType {
+  FISIK
+  PSIKIS
+  PERUNDUNGAN
+  SEKSUAL
+  DISKRIMINASI_INTOLERANSI
+  KEBIJAKAN_KEKERASAN
+}
+
+enum Urgency {
+  RENDAH
+  SEDANG
+  TINGGI
+}
+
+enum ReportStatus {
+  DITERIMA          // laporan masuk
+  VERIFIKASI        // pemeriksaan kelengkapan & kewenangan
+  PEMERIKSAAN       // pemeriksaan pelapor/terlapor/saksi
+  REKOMENDASI       // Satgas menyusun kesimpulan & rekomendasi
+  KEPUTUSAN         // menunggu keputusan pimpinan
+  PEMULIHAN         // pemulihan & pemantauan korban
+  SELESAI
+  TIDAK_DITINDAKLANJUTI
+  DIALIHKAN         // mis. terlapor pimpinan PT -> pihak berwenang
+}
+
+enum Affiliation {
+  MAHASISWA
+  DOSEN
+  TENDIK
+  PIMPINAN_PT
+  PIHAK_LUAR
+  TIDAK_DIKETAHUI
+}
+
+enum SubjectType {
+  PELAPOR
+  TERLAPOR
+  SAKSI
+}
+
+enum AssignmentRole {
+  KETUA_TIM
+  PEMERIKSA
+  PENDAMPING
+}
+
+enum SanctionLevel {
+  RINGAN
+  SEDANG
+  BERAT
+}
+
+enum SupportType {
+  KONSELING
+  PENDAMPINGAN_HUKUM
+  LAYANAN_KESEHATAN
+  PELINDUNGAN
+  PEMULIHAN_AKADEMIK
+}
+
+enum SupportStatus {
+  DIRENCANAKAN
+  BERJALAN
+  SELESAI
+}
+
+enum MessageSender {
+  PELAPOR
+  SATGAS
+}
+
+enum DocumentType {
+  BERITA_ACARA
+  REKOMENDASI
+  SK_SANKSI
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+// ------------------------------------------------------------
+// PENGGUNA
+// ------------------------------------------------------------
+
+/// id = auth.users.id (Supabase Auth). Baris dibuat oleh trigger saat registrasi.
+model Profile {
+  id             String   @id @db.Uuid
+  fullName       String
+  email          String   @unique
+  phone          String?
+  role           Role     @default(PELAPOR)
+  identityNumber String?  // NIM / NIP / NIDN
+  unit           String?  // fakultas / prodi / unit kerja
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reportsFiled    Report[]         @relation("ReportReporter")
+  assignments     CaseAssignment[]
+  statusChanges   StatusHistory[]
+  examinations    Examination[]
+  recommendations Recommendation[]
+  decisions       Decision[]
+  supportHandled  SupportService[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@map("profiles")
+}
+
+// ------------------------------------------------------------
+// LAPORAN
+// ------------------------------------------------------------
+
+model Report {
+  id               String         @id @default(uuid()) @db.Uuid
+  ticketCode       String         @unique // mis. PPKPT-2026-A7K9Q2 (publik, untuk pelacakan)
+  accessTokenHash  String?        // hash PIN pelacakan (pelapor tanpa akun/anonim)
+  reporterId       String?        @db.Uuid
+  reporter         Profile?       @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  isAnonymous      Boolean        @default(false)
+  reporterRole     ReporterRole
+  contactEmail     String?        // kontak opsional untuk pelapor anonim
+  contactPhone     String?
+
+  violenceTypes    ViolenceType[] // satu laporan bisa mencakup beberapa bentuk
+  incidentDate     DateTime
+  incidentLocation String
+  chronology       String         @db.Text
+  urgency          Urgency        @default(SEDANG)
+  needsProtection  Boolean        @default(false)
+
+  status           ReportStatus   @default(DITERIMA)
+  closedAt         DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  evidences       ReportEvidence[]
+  respondents     Respondent[]
+  witnesses       Witness[]
+  assignments     CaseAssignment[]
+  statusHistory   StatusHistory[]
+  examinations    Examination[]
+  recommendation  Recommendation?
+  decision        Decision?
+  supportServices SupportService[]
+  messages        ReportMessage[]
+  documents       GeneratedDocument[]
+  notifications   Notification[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([reporterId])
+  @@map("reports")
+}
+
+model ReportEvidence {
+  id          String   @id @default(uuid()) @db.Uuid
+  reportId    String   @db.Uuid
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  storagePath String   // path di bucket privat Supabase Storage
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  @@index([reportId])
+  @@map("report_evidences")
+}
+
+/// Terlapor
+model Respondent {
+  id          String      @id @default(uuid()) @db.Uuid
+  reportId    String      @db.Uuid
+  report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  name        String
+  identifier  String?     // NIM / NIP bila diketahui
+  affiliation Affiliation @default(TIDAK_DIKETAHUI)
+  description String?     @db.Text
+
+  @@index([reportId])
+  @@map("respondents")
+}
+
+model Witness {
+  id       String  @id @default(uuid()) @db.Uuid
+  reportId String  @db.Uuid
+  report   Report  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  name     String
+  contact  String?
+  notes    String? @db.Text
+
+  @@index([reportId])
+  @@map("witnesses")
+}
+
+// ------------------------------------------------------------
+// PENANGANAN OLEH SATGAS
+// ------------------------------------------------------------
+
+model CaseAssignment {
+  id         String         @id @default(uuid()) @db.Uuid
+  reportId   String         @db.Uuid
+  report     Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  memberId   String         @db.Uuid
+  member     Profile        @relation(fields: [memberId], references: [id])
+  role       AssignmentRole
+  assignedAt DateTime       @default(now())
+
+  @@unique([reportId, memberId])
+  @@map("case_assignments")
+}
+
+model StatusHistory {
+  id                String        @id @default(uuid()) @db.Uuid
+  reportId          String        @db.Uuid
+  report            Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fromStatus        ReportStatus?
+  toStatus          ReportStatus
+  note              String?       @db.Text
+  visibleToReporter Boolean       @default(true) // tampil di timeline pelapor
+  changedById       String?       @db.Uuid
+  changedBy         Profile?      @relation(fields: [changedById], references: [id])
+  createdAt         DateTime      @default(now())
+
+  @@index([reportId, createdAt])
+  @@map("status_history")
+}
+
+model Examination {
+  id          String      @id @default(uuid()) @db.Uuid
+  reportId    String      @db.Uuid
+  report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  subjectType SubjectType
+  subjectName String
+  examinerId  String      @db.Uuid
+  examiner    Profile     @relation(fields: [examinerId], references: [id])
+  examinedAt  DateTime
+  summary     String      @db.Text // ringkasan keterangan (dasar berita acara)
+  createdAt   DateTime    @default(now())
+
+  @@index([reportId])
+  @@map("examinations")
+}
+
+model Recommendation {
+  id                String         @id @default(uuid()) @db.Uuid
+  reportId          String         @unique @db.Uuid
+  report            Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorId          String         @db.Uuid
+  author            Profile        @relation(fields: [authorId], references: [id])
+  findings          String         @db.Text // kesimpulan pemeriksaan
+  content           String         @db.Text // isi rekomendasi
+  suggestedSanction SanctionLevel?
+  submittedAt       DateTime?      // diserahkan ke pimpinan
+  createdAt         DateTime       @default(now())
+
+  @@map("recommendations")
+}
+
+/// Keputusan pimpinan perguruan tinggi
+model Decision {
+  id             String         @id @default(uuid()) @db.Uuid
+  reportId       String         @unique @db.Uuid
+  report         Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  decidedById    String         @db.Uuid
+  decidedBy      Profile        @relation(fields: [decidedById], references: [id])
+  sanctionLevel  SanctionLevel?
+  sanctionDetail String?        @db.Text
+  decisionNumber String?        // nomor SK
+  decidedAt      DateTime       @default(now())
+
+  @@map("decisions")
+}
+
+/// Pendampingan, pelindungan, dan pemulihan korban
+model SupportService {
+  id          String        @id @default(uuid()) @db.Uuid
+  reportId    String        @db.Uuid
+  report      Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  type        SupportType
+  status      SupportStatus @default(DIRENCANAKAN)
+  providerName String?      // konselor / psikolog / LBH, dll.
+  handledById String?       @db.Uuid
+  handledBy   Profile?      @relation(fields: [handledById], references: [id])
+  scheduledAt DateTime?
+  notes       String?       @db.Text
+  createdAt   DateTime      @default(now())
+
+  @@index([reportId])
+  @@map("support_services")
+}
+
+// ------------------------------------------------------------
+// KOMUNIKASI, DOKUMEN, NOTIFIKASI, AUDIT
+// ------------------------------------------------------------
+
+model ReportMessage {
+  id         String        @id @default(uuid()) @db.Uuid
+  reportId   String        @db.Uuid
+  report     Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  senderType MessageSender
+  senderId   String?       @db.Uuid // profile id; null untuk pelapor anonim
+  body       String        @db.Text
+  createdAt  DateTime      @default(now())
+
+  @@index([reportId, createdAt])
+  @@map("report_messages")
+}
+
+model GeneratedDocument {
+  id            String       @id @default(uuid()) @db.Uuid
+  reportId      String       @db.Uuid
+  report        Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  type          DocumentType
+  storagePath   String
+  generatedById String?      @db.Uuid
+  createdAt     DateTime     @default(now())
+
+  @@index([reportId])
+  @@map("generated_documents")
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String?             @db.Uuid
+  user      Profile?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportId  String?             @db.Uuid
+  report    Report?             @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  channel   NotificationChannel
+  title     String
+  body      String              @db.Text
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  actor      Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String   // mis. REPORT_VIEWED, STATUS_CHANGED, EVIDENCE_DOWNLOADED
+  entityType String
+  entityId   String
+  ipAddress  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
