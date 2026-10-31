@@ -1,0 +1,416 @@
+// ============================================================
+// Sistem Pelaporan Satgas PPKPT — DBML
+// Sumber: prisma/schema.prisma (Prisma 7 / PostgreSQL Supabase)
+// Dasar: Permendikbudristek No. 55 Tahun 2024
+//
+// Catatan pemetaan:
+// - Nama tabel mengikuti @@map di Prisma.
+// - Nama kolom mengikuti nama field Prisma (tanpa @map, jadi camelCase).
+// - String -> varchar, String @db.Text -> text, String @db.Uuid -> uuid,
+//   DateTime -> timestamp, Json -> jsonb.
+// - @default(uuid()) -> gen_random_uuid(), @default(now()) -> now().
+// - Kolom tanpa [not null] bersifat nullable.
+// ============================================================
+
+// ------------------------------------------------------------
+// ENUM
+// ------------------------------------------------------------
+
+Enum Role {
+  PELAPOR
+  ANGGOTA_SATGAS
+  KETUA_SATGAS
+  PIMPINAN
+  ADMIN
+}
+
+Enum ReporterRole {
+  KORBAN
+  SAKSI
+  PIHAK_LAIN
+}
+
+Enum ViolenceType {
+  FISIK
+  PSIKIS
+  PERUNDUNGAN
+  SEKSUAL
+  DISKRIMINASI_INTOLERANSI
+  KEBIJAKAN_KEKERASAN
+}
+
+Enum Urgency {
+  RENDAH
+  SEDANG
+  TINGGI
+}
+
+Enum ReportStatus {
+  DITERIMA
+  VERIFIKASI
+  PEMERIKSAAN
+  REKOMENDASI
+  KEPUTUSAN
+  PEMULIHAN
+  SELESAI
+  TIDAK_DITINDAKLANJUTI
+  DIALIHKAN
+}
+
+Enum Affiliation {
+  MAHASISWA
+  DOSEN
+  TENDIK
+  PIMPINAN_PT
+  PIHAK_LUAR
+  TIDAK_DIKETAHUI
+}
+
+Enum SubjectType {
+  PELAPOR
+  TERLAPOR
+  SAKSI
+}
+
+Enum AssignmentRole {
+  KETUA_TIM
+  PEMERIKSA
+  PENDAMPING
+}
+
+Enum SanctionLevel {
+  RINGAN
+  SEDANG
+  BERAT
+}
+
+Enum SupportType {
+  KONSELING
+  PENDAMPINGAN_HUKUM
+  LAYANAN_KESEHATAN
+  PELINDUNGAN
+  PEMULIHAN_AKADEMIK
+}
+
+Enum SupportStatus {
+  DIRENCANAKAN
+  BERJALAN
+  SELESAI
+}
+
+Enum MessageSender {
+  PELAPOR
+  SATGAS
+}
+
+Enum DocumentType {
+  BERITA_ACARA
+  REKOMENDASI
+  SK_SANKSI
+}
+
+Enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+// ------------------------------------------------------------
+// PENGGUNA
+// ------------------------------------------------------------
+
+Table profiles {
+  id uuid [pk, note: 'id = auth.users.id (Supabase Auth)']
+  fullName varchar [not null]
+  email varchar [not null, unique]
+  phone varchar
+  role Role [not null, default: 'PELAPOR']
+  identityNumber varchar [note: 'NIM / NIP / NIDN']
+  unit varchar [note: 'fakultas / prodi / unit kerja']
+  isActive boolean [not null, default: true]
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, note: 'diperbarui otomatis oleh Prisma (@updatedAt)']
+}
+
+// ------------------------------------------------------------
+// LAPORAN
+// ------------------------------------------------------------
+
+Table reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ticketCode varchar [not null, unique, note: 'mis. PPKPT-2026-A7K9Q2 (publik, untuk pelacakan)']
+  clientSubmissionId uuid [unique, note: 'idempotensi pengiriman formulir']
+  accessTokenHash varchar [note: 'hash PIN pelacakan (pelapor tanpa akun/anonim)']
+  reporterId uuid
+  isAnonymous boolean [not null, default: false]
+  reporterRole ReporterRole [not null]
+  contactEmail varchar [note: 'kontak opsional untuk pelapor anonim']
+  contactPhone varchar
+  violenceTypes ViolenceType[] [not null, note: 'satu laporan bisa mencakup beberapa bentuk']
+  incidentDate timestamp [not null]
+  incidentLocation varchar [not null]
+  chronology text [not null]
+  urgency Urgency [not null, default: 'SEDANG']
+  needsProtection boolean [not null, default: false]
+  status ReportStatus [not null, default: 'DITERIMA']
+  closedAt timestamp
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, note: 'diperbarui otomatis oleh Prisma (@updatedAt)']
+
+  indexes {
+    status
+    createdAt
+    reporterId
+  }
+}
+
+Table report_evidences {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  storagePath varchar [not null, note: 'path di bucket privat Supabase Storage']
+  fileName varchar [not null]
+  mimeType varchar [not null]
+  sizeBytes integer [not null]
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    reportId
+  }
+}
+
+Table respondents {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  name varchar [not null, note: 'terlapor']
+  identifier varchar [note: 'NIM / NIP bila diketahui']
+  affiliation Affiliation [not null, default: 'TIDAK_DIKETAHUI']
+  description text
+
+  indexes {
+    reportId
+  }
+}
+
+Table witnesses {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  name varchar [not null]
+  contact varchar
+  notes text
+
+  indexes {
+    reportId
+  }
+}
+
+// ------------------------------------------------------------
+// PENANGANAN OLEH SATGAS
+// ------------------------------------------------------------
+
+Table case_assignments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  memberId uuid [not null]
+  role AssignmentRole [not null]
+  assignedAt timestamp [not null, default: `now()`]
+
+  indexes {
+    (reportId, memberId) [unique]
+  }
+}
+
+Table status_history {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  fromStatus ReportStatus
+  toStatus ReportStatus [not null]
+  note text
+  visibleToReporter boolean [not null, default: true, note: 'tampil di timeline pelapor']
+  changedById uuid
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    (reportId, createdAt)
+  }
+}
+
+Table examinations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  subjectType SubjectType [not null]
+  subjectName varchar [not null]
+  examinerId uuid [not null]
+  examinedAt timestamp [not null]
+  summary text [not null, note: 'ringkasan keterangan (dasar berita acara)']
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    reportId
+  }
+}
+
+Table recommendations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null, unique]
+  authorId uuid [not null]
+  findings text [not null, note: 'kesimpulan pemeriksaan']
+  content text [not null, note: 'isi rekomendasi']
+  suggestedSanction SanctionLevel
+  submittedAt timestamp [note: 'diserahkan ke pimpinan']
+  createdAt timestamp [not null, default: `now()`]
+}
+
+Table decisions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null, unique]
+  decidedById uuid [not null]
+  sanctionLevel SanctionLevel
+  sanctionDetail text
+  decisionNumber varchar [note: 'nomor SK']
+  decidedAt timestamp [not null, default: `now()`]
+}
+
+Table support_services {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  type SupportType [not null]
+  status SupportStatus [not null, default: 'DIRENCANAKAN']
+  providerName varchar [note: 'konselor / psikolog / LBH, dll.']
+  handledById uuid
+  scheduledAt timestamp
+  notes text
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    reportId
+  }
+}
+
+// ------------------------------------------------------------
+// KOMUNIKASI, DOKUMEN, NOTIFIKASI, AUDIT
+// ------------------------------------------------------------
+
+Table report_messages {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  senderType MessageSender [not null]
+  senderId uuid [note: 'profile id; null untuk pelapor anonim']
+  body text [not null]
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    (reportId, createdAt)
+  }
+}
+
+Table generated_documents {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reportId uuid [not null]
+  type DocumentType [not null]
+  storagePath varchar [not null]
+  generatedById uuid
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    reportId
+  }
+}
+
+Table notifications {
+  id uuid [pk, default: `gen_random_uuid()`]
+  userId uuid
+  reportId uuid
+  channel NotificationChannel [not null]
+  title varchar [not null]
+  body text [not null]
+  sentAt timestamp
+  readAt timestamp
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    (userId, readAt)
+  }
+}
+
+Table audit_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  actorId uuid
+  action varchar [not null, note: 'mis. REPORT_VIEWED, STATUS_CHANGED, EVIDENCE_DOWNLOADED']
+  entityType varchar [not null]
+  entityId varchar [not null]
+  ipAddress varchar
+  metadata jsonb
+  createdAt timestamp [not null, default: `now()`]
+
+  indexes {
+    (entityType, entityId)
+    (actorId, createdAt)
+  }
+}
+
+// ------------------------------------------------------------
+// RELASI
+// ------------------------------------------------------------
+
+Ref: reports.reporterId > profiles.id [delete: set null]
+
+Ref: report_evidences.reportId > reports.id [delete: cascade]
+Ref: respondents.reportId > reports.id [delete: cascade]
+Ref: witnesses.reportId > reports.id [delete: cascade]
+
+Ref: case_assignments.reportId > reports.id [delete: cascade]
+Ref: case_assignments.memberId > profiles.id
+
+Ref: status_history.reportId > reports.id [delete: cascade]
+Ref: status_history.changedById > profiles.id
+
+Ref: examinations.reportId > reports.id [delete: cascade]
+Ref: examinations.examinerId > profiles.id
+
+Ref: recommendations.reportId > reports.id [delete: cascade]
+Ref: recommendations.authorId > profiles.id
+
+Ref: decisions.reportId > reports.id [delete: cascade]
+Ref: decisions.decidedById > profiles.id
+
+Ref: support_services.reportId > reports.id [delete: cascade]
+Ref: support_services.handledById > profiles.id
+
+Ref: report_messages.reportId > reports.id [delete: cascade]
+Ref: generated_documents.reportId > reports.id [delete: cascade]
+
+Ref: notifications.userId > profiles.id [delete: cascade]
+Ref: notifications.reportId > reports.id [delete: set null]
+
+Ref: audit_logs.actorId > profiles.id [delete: set null]
+
+// ------------------------------------------------------------
+// PENGELOMPOKAN UNTUK DIAGRAM
+// ------------------------------------------------------------
+
+TableGroup "Pengguna" {
+  profiles
+}
+
+TableGroup "Laporan" {
+  reports
+  report_evidences
+  respondents
+  witnesses
+}
+
+TableGroup "Penanganan Satgas" {
+  case_assignments
+  status_history
+  examinations
+  recommendations
+  decisions
+  support_services
+}
+
+TableGroup "Komunikasi & Audit" {
+  report_messages
+  generated_documents
+  notifications
+  audit_logs
+}

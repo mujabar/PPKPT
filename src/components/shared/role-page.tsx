@@ -95,11 +95,13 @@ export function EmptyArea({
   title,
   description,
   meta,
+  action,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
   meta?: string;
+  action?: ReactNode;
 }) {
   return (
     <div className="border border-dashed border-border/90 bg-muted/15 px-6 py-10 sm:px-8">
@@ -110,6 +112,7 @@ export function EmptyArea({
       <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
+      {action ? <div className="mt-6">{action}</div> : null}
       {meta ? (
         <p className="mt-6 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
           {meta}

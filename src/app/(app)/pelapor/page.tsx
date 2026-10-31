@@ -1,4 +1,5 @@
-import { Files } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, Files } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import {
@@ -50,8 +51,17 @@ async function PelaporContent() {
       <EmptyArea
         icon={<Files size={22} weight="duotone" />}
         title="Belum ada laporan"
-        description="Fitur pembuatan dan pelacakan laporan akan tersedia pada issue berikutnya. Halaman ini memastikan area pelapor hanya dapat dibuka oleh pemilik akun pelapor."
+        description="Mulai dengan formulir laporan. Nomor tiket dibuat setelah laporan benar-benar tersimpan, dan Anda dapat mengirim lebih dari satu laporan."
         meta="Data pribadi · hanya Anda dan Satgas"
+        action={
+          <Link
+            href="/pelapor/form-laporan"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 active:translate-y-px"
+          >
+            Buat laporan
+            <ArrowRight size={16} />
+          </Link>
+        }
       />
     </RolePage>
   );
