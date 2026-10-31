@@ -18,10 +18,10 @@ datasource db {
 // ------------------------------------------------------------
 
 enum Role {
-  PELAPOR        // sivitas akademika yang punya akun
+  PELAPOR // sivitas akademika yang punya akun
   ANGGOTA_SATGAS
   KETUA_SATGAS
-  PIMPINAN       // pimpinan perguruan tinggi (penetap sanksi)
+  PIMPINAN // pimpinan perguruan tinggi (penetap sanksi)
   ADMIN
 }
 
@@ -48,15 +48,15 @@ enum Urgency {
 }
 
 enum ReportStatus {
-  DITERIMA          // laporan masuk
-  VERIFIKASI        // pemeriksaan kelengkapan & kewenangan
-  PEMERIKSAAN       // pemeriksaan pelapor/terlapor/saksi
-  REKOMENDASI       // Satgas menyusun kesimpulan & rekomendasi
-  KEPUTUSAN         // menunggu keputusan pimpinan
-  PEMULIHAN         // pemulihan & pemantauan korban
+  DITERIMA // laporan masuk
+  VERIFIKASI // pemeriksaan kelengkapan & kewenangan
+  PEMERIKSAAN // pemeriksaan pelapor/terlapor/saksi
+  REKOMENDASI // Satgas menyusun kesimpulan & rekomendasi
+  KEPUTUSAN // menunggu keputusan pimpinan
+  PEMULIHAN // pemulihan & pemantauan korban
   SELESAI
   TIDAK_DITINDAKLANJUTI
-  DIALIHKAN         // mis. terlapor pimpinan PT -> pihak berwenang
+  DIALIHKAN // mis. terlapor pimpinan PT -> pihak berwenang
 }
 
 enum Affiliation {
@@ -128,8 +128,8 @@ model Profile {
   email          String   @unique
   phone          String?
   role           Role     @default(PELAPOR)
-  identityNumber String?  // NIM / NIP / NIDN
-  unit           String?  // fakultas / prodi / unit kerja
+  identityNumber String? // NIM / NIP / NIDN
+  unit           String? // fakultas / prodi / unit kerja
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -152,15 +152,16 @@ model Profile {
 // ------------------------------------------------------------
 
 model Report {
-  id               String         @id @default(uuid()) @db.Uuid
-  ticketCode       String         @unique // mis. PPKPT-2026-A7K9Q2 (publik, untuk pelacakan)
-  accessTokenHash  String?        // hash PIN pelacakan (pelapor tanpa akun/anonim)
-  reporterId       String?        @db.Uuid
-  reporter         Profile?       @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
-  isAnonymous      Boolean        @default(false)
-  reporterRole     ReporterRole
-  contactEmail     String?        // kontak opsional untuk pelapor anonim
-  contactPhone     String?
+  id                 String       @id @default(uuid()) @db.Uuid
+  ticketCode         String       @unique // mis. PPKPT-2026-A7K9Q2 (publik, untuk pelacakan)
+  clientSubmissionId String?      @unique @db.Uuid // idempotensi pengiriman formulir
+  accessTokenHash    String? // hash PIN pelacakan (pelapor tanpa akun/anonim)
+  reporterId         String?      @db.Uuid
+  reporter           Profile?     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  isAnonymous        Boolean      @default(false)
+  reporterRole       ReporterRole
+  contactEmail       String? // kontak opsional untuk pelapor anonim
+  contactPhone       String?
 
   violenceTypes    ViolenceType[] // satu laporan bisa mencakup beberapa bentuk
   incidentDate     DateTime
@@ -169,10 +170,10 @@ model Report {
   urgency          Urgency        @default(SEDANG)
   needsProtection  Boolean        @default(false)
 
-  status           ReportStatus   @default(DITERIMA)
-  closedAt         DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  status    ReportStatus @default(DITERIMA)
+  closedAt  DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   evidences       ReportEvidence[]
   respondents     Respondent[]
@@ -197,7 +198,7 @@ model ReportEvidence {
   id          String   @id @default(uuid()) @db.Uuid
   reportId    String   @db.Uuid
   report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  storagePath String   // path di bucket privat Supabase Storage
+  storagePath String // path di bucket privat Supabase Storage
   fileName    String
   mimeType    String
   sizeBytes   Int
@@ -213,7 +214,7 @@ model Respondent {
   reportId    String      @db.Uuid
   report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
   name        String
-  identifier  String?     // NIM / NIP bila diketahui
+  identifier  String? // NIM / NIP bila diketahui
   affiliation Affiliation @default(TIDAK_DIKETAHUI)
   description String?     @db.Text
 
@@ -291,7 +292,7 @@ model Recommendation {
   findings          String         @db.Text // kesimpulan pemeriksaan
   content           String         @db.Text // isi rekomendasi
   suggestedSanction SanctionLevel?
-  submittedAt       DateTime?      // diserahkan ke pimpinan
+  submittedAt       DateTime? // diserahkan ke pimpinan
   createdAt         DateTime       @default(now())
 
   @@map("recommendations")
@@ -306,7 +307,7 @@ model Decision {
   decidedBy      Profile        @relation(fields: [decidedById], references: [id])
   sanctionLevel  SanctionLevel?
   sanctionDetail String?        @db.Text
-  decisionNumber String?        // nomor SK
+  decisionNumber String? // nomor SK
   decidedAt      DateTime       @default(now())
 
   @@map("decisions")
@@ -314,17 +315,17 @@ model Decision {
 
 /// Pendampingan, pelindungan, dan pemulihan korban
 model SupportService {
-  id          String        @id @default(uuid()) @db.Uuid
-  reportId    String        @db.Uuid
-  report      Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  type        SupportType
-  status      SupportStatus @default(DIRENCANAKAN)
-  providerName String?      // konselor / psikolog / LBH, dll.
-  handledById String?       @db.Uuid
-  handledBy   Profile?      @relation(fields: [handledById], references: [id])
-  scheduledAt DateTime?
-  notes       String?       @db.Text
-  createdAt   DateTime      @default(now())
+  id           String        @id @default(uuid()) @db.Uuid
+  reportId     String        @db.Uuid
+  report       Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  type         SupportType
+  status       SupportStatus @default(DIRENCANAKAN)
+  providerName String? // konselor / psikolog / LBH, dll.
+  handledById  String?       @db.Uuid
+  handledBy    Profile?      @relation(fields: [handledById], references: [id])
+  scheduledAt  DateTime?
+  notes        String?       @db.Text
+  createdAt    DateTime      @default(now())
 
   @@index([reportId])
   @@map("support_services")
@@ -381,7 +382,7 @@ model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
   actorId    String?  @db.Uuid
   actor      Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action     String   // mis. REPORT_VIEWED, STATUS_CHANGED, EVIDENCE_DOWNLOADED
+  action     String // mis. REPORT_VIEWED, STATUS_CHANGED, EVIDENCE_DOWNLOADED
   entityType String
   entityId   String
   ipAddress  String?
