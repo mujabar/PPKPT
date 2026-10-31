@@ -1,6 +1,12 @@
+import { Files } from "@phosphor-icons/react/dist/ssr";
 import { Suspense } from "react";
 
-import { RolePage, RolePageFallback } from "@/components/shared/role-page";
+import {
+  AccessList,
+  EmptyArea,
+  RolePage,
+  RolePageFallback,
+} from "@/components/shared/role-page";
 import { requireRole } from "@/feature/auth/service";
 
 export default function PelaporPage() {
@@ -16,14 +22,37 @@ async function PelaporContent() {
 
   return (
     <RolePage
-      title="Area Pelapor"
-      description="Pantau laporan milik Anda dan komunikasi dengan Satgas."
+      index="01"
+      eyebrow="Area pelapor"
+      title="Laporan milik Anda, dalam satu jalur."
+      description="Pantau laporan yang Anda buat dan komunikasi dengan Satgas. Identitas dapat dijaga sesuai pilihan saat melapor."
       profile={profile}
+      aside={
+        <AccessList
+          title="Batas akses"
+          items={[
+            {
+              label: "Data milik sendiri",
+              detail: "Hanya laporan yang Anda buat yang dapat dibaca.",
+            },
+            {
+              label: "Identitas terjaga",
+              detail: "Pilihan anonim tidak membuka identitas ke publik.",
+            },
+            {
+              label: "Rute lain ditolak",
+              detail: "Area Satgas, ketua, pimpinan, dan admin tidak dapat dibuka.",
+            },
+          ]}
+        />
+      }
     >
-      <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        Fitur pembuatan dan pelacakan laporan akan tersedia pada issue berikutnya.
-        Untuk saat ini, area ini memastikan hanya pelapor yang dapat mengaksesnya.
-      </div>
+      <EmptyArea
+        icon={<Files size={22} weight="duotone" />}
+        title="Belum ada laporan"
+        description="Fitur pembuatan dan pelacakan laporan akan tersedia pada issue berikutnya. Halaman ini memastikan area pelapor hanya dapat dibuka oleh pemilik akun pelapor."
+        meta="Data pribadi · hanya Anda dan Satgas"
+      />
     </RolePage>
   );
 }
