@@ -192,13 +192,17 @@ Verifikasi auth manual:
 │   ├── app/
 │   │   ├── (auth)/login/      # Halaman login
 │   │   ├── (app)/             # Halaman terlindungi per peran
+│   │   │   └── pelapor/form-laporan/  # Formulir laporan pelapor
 │   │   ├── page.tsx           # Halaman awal publik
 │   │   └── validasi/          # Demo validasi Zod
 │   ├── components/
 │   │   ├── auth/              # AuthPage, LoginForm, RoleRowForm
+│   │   ├── form-pelapor/      # FormLaporan + ReportForm
 │   │   ├── shared/            # Header, submit button, role page
 │   │   └── ui/                # Komponen dasar shadcn/ui
-│   ├── feature/auth/          # Service, action, validasi, peran
+│   ├── feature/
+│   │   ├── auth/              # Service, action, validasi, peran
+│   │   └── pelapor/           # Validasi, action, service laporan
 │   ├── generated/prisma/      # Prisma Client hasil generate (di-ignore Git)
 │   ├── lib/
 │   │   ├── supabase/          # client, server, proxy, config
@@ -240,6 +244,25 @@ Verifikasi auth manual:
 - **Admin** dapat mengubah peran akun lain di `/admin`. Perubahan peran akun sendiri ditolak,
   dan halaman admin tidak menampilkan data kasus.
 
+## Formulir laporan pelapor
+
+- Halaman: `/pelapor/form-laporan` (hanya untuk akun aktif dengan peran `PELAPOR`).
+- Isi: posisi pelapor, tanggal/lokasi/kronologi, jenis kekerasan, terlapor (bisa lebih dari
+  satu atau dikosongkan), saksi opsional (bisa lebih dari satu), dan kebutuhan perlindungan.
+- Validasi `Zod` dijalankan di server: field wajib, enum yang sah, batas panjang, dan tanggal
+  tidak boleh di masa depan. Error tampil di bagian terkait tanpa menghapus isian.
+- Pemilik laporan **selalu** diambil dari sesi (`reporterId`), bukan dari formulir. Laporan
+  disimpan melalui satu nested write Prisma sehingga laporan, terlapor, saksi, dan riwayat
+  status awal (`DITERIMA`) tersimpan bersama.
+- Nomor tiket berformat `PPKPT-<tahun>-<6 karakter>` dan unik. Urgensi awal mengikuti default
+  skema (`SEDANG`); `needsProtection` disimpan terpisah.
+- `clientSubmissionId` (uuid unik) membuat pengiriman idempotent: retry atau double-submit
+  mengembalikan tiket yang sama, bukan laporan ganda.
+- RLS pada `reports`, `respondents`, `witnesses`, dan `status_history` menutup akses Data API
+  untuk pengguna lain. Prisma berjalan sebagai role `postgres`, sehingga pemeriksaan
+  `requireRole` dan kepemilikan sesi tetap wajib di server.
+- Tidak ada log aplikasi yang menulis kronologi, identitas, atau kontak.
+
 ## Catatan teknis
 
 - **Prisma 7** memakai `prisma7.config.ts` untuk konfigurasi CLI dan **driver adapter**
@@ -259,6 +282,7 @@ Verifikasi auth manual:
 | `Authentication failed` | Password salah. Karakter khusus pada password harus di-URL-encode (mis. `@` → `%40`). |
 | Migrasi gagal lewat pooler | Pastikan `DIRECT_URL` memakai port `5432`, bukan `6543`. |
 | `PrismaClient did not initialize` | Jalankan `npm run db:generate`, lalu restart dev server. |
+| `PrismaClientValidationError` setelah ubah schema | Generate ulang client (`npm run db:generate`) lalu restart dev server agar model baru dimuat. |
 | `Konfigurasi environment tidak valid` | `.env` belum diisi atau `DATABASE_URL` bukan URL yang valid. |
 | `Konfigurasi Supabase tidak valid` | Isi `NEXT_PUBLIC_SUPABASE_URL` dan anon/publishable key. |
 | `email atau password ada salah` | Password akun uji diambil dari `TEST_USER_PASSWORD` saat akun dibuat. Jika lupa, reset lewat dashboard Supabase. |
