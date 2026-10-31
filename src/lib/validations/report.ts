@@ -20,7 +20,10 @@ export const reportSchema = z.object({
     .min(1, "Pilih minimal satu bentuk kekerasan."),
   incidentDate: z.coerce
     .date("Tanggal kejadian tidak valid.")
-    .max(new Date(), "Tanggal kejadian tidak boleh di masa depan."),
+    .refine(
+      (value) => value.getTime() <= Date.now(),
+      "Tanggal kejadian tidak boleh di masa depan.",
+    ),
   incidentLocation: z
     .string()
     .trim()
