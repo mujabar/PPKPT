@@ -248,6 +248,7 @@ model CaseAssignment {
   assignedAt DateTime       @default(now())
 
   @@unique([reportId, memberId])
+  @@index([memberId])
   @@map("case_assignments")
 }
 
