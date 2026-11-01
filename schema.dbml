@@ -216,6 +216,7 @@ Table case_assignments {
 
   indexes {
     (reportId, memberId) [unique]
+    memberId
   }
 }
 

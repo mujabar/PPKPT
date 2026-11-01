@@ -192,17 +192,21 @@ Verifikasi auth manual:
 │   ├── app/
 │   │   ├── (auth)/login/      # Halaman login
 │   │   ├── (app)/             # Halaman terlindungi per peran
-│   │   │   └── pelapor/form-laporan/  # Formulir laporan pelapor
+│   │   │   ├── pelapor/form-laporan/  # Formulir laporan pelapor
+│   │   │   └── satgas/        # Area Satgas (placeholder + link)
+│   │   ├── pelapor/satgas/    # Dashboard daftar laporan Satgas
 │   │   ├── page.tsx           # Halaman awal publik
 │   │   └── validasi/          # Demo validasi Zod
 │   ├── components/
 │   │   ├── auth/              # AuthPage, LoginForm, RoleRowForm
-│   │   ├── form-pelapor/      # FormLaporan + ReportForm
-│   │   ├── shared/            # Header, submit button, role page
+│   │   ├── form-pelapor/      # FormLaporan, ReportForm, EvidencePanel
+│   │   ├── satgas/            # Dashboard, filter, list, pagination
+│   │   ├── shared/            # Shell, header, submit button, role page
 │   │   └── ui/                # Komponen dasar shadcn/ui
 │   ├── feature/
 │   │   ├── auth/              # Service, action, validasi, peran
-│   │   └── pelapor/           # Validasi, action, service laporan
+│   │   ├── pelapor/           # Validasi, action, service laporan/bukti
+│   │   └── satgas/            # Service, validasi filter dashboard
 │   ├── generated/prisma/      # Prisma Client hasil generate (di-ignore Git)
 │   ├── lib/
 │   │   ├── supabase/          # client, server, proxy, config
@@ -234,6 +238,9 @@ Verifikasi auth manual:
 | `PIMPINAN` | `/pimpinan` | Kasus untuk keputusan |
 | `ADMIN` | `/admin` | Akun & peran, tanpa isi kasus |
 
+Dashboard daftar laporan Satgas tersedia di `/pelapor/satgas` untuk `KETUA_SATGAS`
+(seluruh laporan) dan `ANGGOTA_SATGAS` (hanya laporan yang ditugaskan).
+
 - **RLS** diaktifkan untuk seluruh tabel di schema `public` lewat migrasi
   `20261031030000_enable_rls`. Hanya `profiles` memiliki policy SELECT milik sendiri; tidak ada
   policy UPDATE/INSERT/DELETE, sehingga peran tidak bisa diubah lewat Supabase Data API.
@@ -262,6 +269,26 @@ Verifikasi auth manual:
   untuk pengguna lain. Prisma berjalan sebagai role `postgres`, sehingga pemeriksaan
   `requireRole` dan kepemilikan sesi tetap wajib di server.
 - Tidak ada log aplikasi yang menulis kronologi, identitas, atau kontak.
+
+## Dashboard Satgas
+
+- Route: `/pelapor/satgas`.
+- Akses: `KETUA_SATGAS` melihat seluruh laporan masuk; `ANGGOTA_SATGAS` hanya laporan
+  dengan `CaseAssignment` untuk akunnya. Pelapor, pimpinan, admin, dan pengguna tanpa login
+  ditolak. Scope diterapkan pada query `count` dan `findMany`, bukan hanya di UI.
+- Daftar hanya memuat nomor tiket, tanggal masuk, jenis kekerasan, status, urgensi, dan
+  penanda perlindungan. Identitas pelapor, kontak, kronologi, dan bukti tidak diambil dari
+  database untuk halaman ini.
+- Pencarian berdasarkan awalan nomor tiket, filter seluruh status dan urgensi, serta
+  kombinasinya disimpan di URL (`q`, `status`, `urgency`, `page`). Pilihan “Semua” dan
+  “Reset” tersedia; menerapkan filter kembali ke halaman 1.
+- Urutan terbaru lebih dahulu, 10 laporan per halaman, dengan total hasil sesuai
+  kewenangan dan filter aktif. Nilai filter/halaman yang tidak valid diabaikan dengan aman.
+- RLS pada `reports` dan `case_assignments` tetap aktif tanpa policy client; Prisma
+  berjalan sebagai role `postgres`, sehingga guard server tetap wajib. Index
+  `case_assignments.memberId` ditambahkan untuk query penugasan.
+- Tersedia keadaan memuat (Suspense/skeleton), gagal dengan tombol coba lagi (`error.tsx`),
+  belum ada laporan, tidak ada hasil filter, dan akses ditolak.
 
 ## Catatan teknis
 
