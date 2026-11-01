@@ -1,4 +1,5 @@
-import { ClipboardText } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ClipboardText } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 import { EvidencePanel } from "@/components/form-pelapor/evidence-panel";
 import { Suspense } from "react";
 
@@ -51,9 +52,18 @@ async function SatgasContent() {
       <EvidencePanel />
       <EmptyArea
         icon={<ClipboardText size={22} weight="duotone" />}
-        title="Belum ada kasus ditugaskan"
-        description="Fitur penanganan kasus belum termasuk dalam issue ini. Area Satgas sudah dibatasi untuk anggota dan ketua Satgas."
-        meta="Penugasan · pemeriksaan · pendampingan"
+        title="Daftar laporan Satgas"
+        description="Ketua dapat meninjau seluruh laporan masuk; anggota hanya melihat laporan yang ditugaskan. Penugasan dan detail kasus dikerjakan pada issue berikutnya."
+        meta="Pencarian · filter status · filter urgensi"
+        action={
+          <Link
+            href="/pelapor/satgas"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 active:translate-y-px"
+          >
+            Buka daftar laporan
+            <ArrowRight size={16} />
+          </Link>
+        }
       />
     </RolePage>
   );

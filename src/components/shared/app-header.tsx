@@ -1,4 +1,5 @@
 import { SignOut } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 
 import { BrandMark } from "@/components/shared/brand-mark";
 import { SubmitButton } from "@/components/shared/submit-button";
@@ -33,6 +34,18 @@ export async function AppHeader() {
               {ROLE_LABELS[profile.role]}
             </span>
           </span>
+          {profile.role === "KETUA_SATGAS" ||
+          profile.role === "ANGGOTA_SATGAS" ? (
+            <>
+              <span className="hidden h-5 w-px bg-border sm:block" />
+              <Link
+                href="/pelapor/satgas"
+                className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline"
+              >
+                Laporan
+              </Link>
+            </>
+          ) : null}
         </div>
 
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
